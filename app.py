@@ -257,9 +257,9 @@ if uploaded_file is not None:
                 
                 # Subject performance details
                 st.subheader(f"Performance Details - {selected_subject}")
-                
+
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
                     # Pass/Fail pie chart
                     fig_subject_pie = px.pie(
@@ -269,7 +269,7 @@ if uploaded_file is not None:
                         color_discrete_map={'Pass': '#2ecc71', 'Fail': '#e74c3c'}
                     )
                     st.plotly_chart(fig_subject_pie, use_container_width=True)
-                
+
                 with col2:
                     # Score histogram
                     subject_scores = df[selected_subject].dropna()
@@ -282,6 +282,19 @@ if uploaded_file is not None:
                     fig_hist.add_vline(x=pass_percentage, line_dash="dash", 
                                      line_color="red", annotation_text="Pass Line")
                     st.plotly_chart(fig_hist, use_container_width=True)
+
+                # List students who failed this subject
+                st.subheader(f"❌ Students Who Failed {selected_subject}")
+                failed_students = df[(df[selected_subject] < pass_percentage) & (pd.notna(df[selected_subject]))]
+                if not failed_students.empty:
+                    failed_students_display = failed_students[['Student_ID', 'Student_Name', selected_subject]].copy()
+                    if not show_student_ids:
+                        failed_students_display['Student_ID'] = failed_students_display['Student_ID'].apply(lambda x: f"Student_{hash(str(x)) % 10000:04d}")
+                        failed_students_display['Student_Name'] = failed_students_display['Student_Name'].apply(lambda x: f"Student_{hash(str(x)) % 10000:04d}")
+                    failed_students_display = failed_students_display.rename(columns={selected_subject: 'Score'})
+                    st.dataframe(failed_students_display, use_container_width=True)
+                else:
+                    st.success(f"All students passed {selected_subject}!")
         
         with tab4:
             st.subheader("🏆 Top Performers")
