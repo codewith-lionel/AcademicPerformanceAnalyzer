@@ -420,22 +420,39 @@ if uploaded_file is not None:
             # Export data option
             st.subheader("Export Options")
             
-            # Export processed data
-            export_data = analyzer.prepare_export_data(df, analysis_results, True)
+            col1, col2 = st.columns(2)
             
-            # Convert to Excel
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                export_data['summary'].to_excel(writer, sheet_name='Summary', index=False)
-                export_data['subject_analysis'].to_excel(writer, sheet_name='Subject Analysis', index=False)
-                export_data['student_performance'].to_excel(writer, sheet_name='Student Performance', index=False)
+            with col1:
+                # Export processed data to Excel
+                export_data = analyzer.prepare_export_data(df, analysis_results, True)
+                
+                # Convert to Excel
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    export_data['summary'].to_excel(writer, sheet_name='Summary', index=False)
+                    export_data['subject_analysis'].to_excel(writer, sheet_name='Subject Analysis', index=False)
+                    export_data['student_performance'].to_excel(writer, sheet_name='Student Performance', index=False)
+                
+                st.download_button(
+                    label="📊 Export Analysis to Excel",
+                    data=output.getvalue(),
+                    file_name="examination_analysis_results.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
             
-            st.download_button(
-                label="📊 Export Analysis to Excel",
-                data=output.getvalue(),
-                file_name="examination_analysis_results.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            with col2:
+                # Export to PDF
+                try:
+                    pdf_data = analyzer.export_to_pdf(df, analysis_results)
+                    st.download_button(
+                        label="📄 Export Report to PDF",
+                        data=pdf_data,
+                        file_name="examination_analysis_report.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as pdf_error:
+                    st.error(f"PDF export error: {str(pdf_error)}")
+                    st.info("Please ensure reportlab is installed: pip install reportlab")
     
     except Exception as e:
         st.error(f"❌ An error occurred while processing the file: {str(e)}")
