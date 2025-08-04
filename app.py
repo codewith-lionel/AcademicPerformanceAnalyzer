@@ -9,6 +9,36 @@ from analysis_engine import ExamAnalyzer
 from report_generator import ReportGenerator
 from data_validator import DataValidator
 
+# --- Custom CSS for style ---
+st.markdown('''
+    <style>
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #2d6cdf;
+        margin-bottom: 0.5rem;
+    }
+    .section-banner {
+        background: linear-gradient(90deg, #2d6cdf 0%, #6dd5ed 100%);
+        color: white;
+        padding: 0.7rem 1.2rem;
+        border-radius: 0.5rem;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        margin-top: 1.5rem;
+        box-shadow: 0 2px 8px rgba(44, 62, 80, 0.08);
+    }
+    .stMetric label, .stMetric span {
+        color: #2d6cdf !important;
+    }
+    .stDataFrame thead tr th {
+        background: #e3f0fc !important;
+        color: #2d6cdf !important;
+    }
+    </style>
+''', unsafe_allow_html=True)
+
 # Configure page
 st.set_page_config(
     page_title="Student Examination Results Analysis",
@@ -18,7 +48,7 @@ st.set_page_config(
 )
 
 # Main title
-st.title("📊 Student Examination Results Analysis System")
+st.markdown('<div class="main-title">📊 Student Examination Results Analysis System</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 # Sidebar for file upload and configuration
@@ -85,7 +115,7 @@ if uploaded_file is not None:
                     st.warning(f"• {warning}")
         
         # Display data preview
-        st.subheader("📋 Data Preview")
+        st.markdown('<div class="section-banner">📋 Data Preview</div>', unsafe_allow_html=True)
         
         # Anonymize student IDs if required
         display_df = df.copy()
@@ -110,7 +140,7 @@ if uploaded_file is not None:
         ])
         
         with tab1:
-            st.subheader("📊 Performance Overview")
+            st.markdown('<div class="section-banner">📊 Performance Overview</div>', unsafe_allow_html=True)
             
             # Key metrics
             col1, col2, col3, col4 = st.columns(4)
@@ -141,7 +171,7 @@ if uploaded_file is not None:
                 )
             
             # Performance distribution chart
-            st.subheader("Score Distribution")
+            st.markdown('<div class="section-banner">📈 Score Distribution</div>', unsafe_allow_html=True)
             
             # Create score ranges
             score_ranges = ['0-40', '41-60', '61-80', '81-100']
@@ -172,7 +202,7 @@ if uploaded_file is not None:
             st.plotly_chart(fig_dist, use_container_width=True)
         
         with tab2:
-            st.subheader("🎯 Department Performance Summary")
+            st.markdown('<div class="section-banner">🎯 Department Performance Summary</div>', unsafe_allow_html=True)
             
             # Department statistics
             col1, col2 = st.columns(2)
@@ -201,7 +231,7 @@ if uploaded_file is not None:
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             # Subject-wise pass rates
-            st.subheader("Subject-wise Pass Rates")
+            st.markdown('<div class="section-banner">📚 Subject-wise Pass Rates</div>', unsafe_allow_html=True)
             subject_stats = analysis_results['subject_wise_stats']
             
             subject_names = list(subject_stats.keys())
@@ -219,7 +249,7 @@ if uploaded_file is not None:
             st.plotly_chart(fig_bar, use_container_width=True)
         
         with tab3:
-            st.subheader("📈 Subject-wise Analysis")
+            st.markdown('<div class="section-banner">📈 Subject-wise Analysis</div>', unsafe_allow_html=True)
             
             # Subject selection
             subject_names = list(analysis_results['subject_wise_stats'].keys())
@@ -256,7 +286,7 @@ if uploaded_file is not None:
                     )
                 
                 # Subject performance details
-                st.subheader(f"Performance Details - {selected_subject}")
+                st.markdown(f'<div class="section-banner" style="background:linear-gradient(90deg,#11998e 0%,#38ef7d 100%)">Performance Details - {selected_subject}</div>', unsafe_allow_html=True)
 
                 col1, col2 = st.columns(2)
 
@@ -284,7 +314,7 @@ if uploaded_file is not None:
                     st.plotly_chart(fig_hist, use_container_width=True)
 
                 # List students who failed this subject
-                st.subheader(f"❌ Students Who Failed {selected_subject}")
+                st.markdown(f'<div class="section-banner" style="background:linear-gradient(90deg,#e74c3c 0%,#f9d423 100%)">❌ Students Who Failed {selected_subject}</div>', unsafe_allow_html=True)
                 failed_students = df[(df[selected_subject] < pass_percentage) & (pd.notna(df[selected_subject]))]
                 if not failed_students.empty:
                     failed_students_display = failed_students[['Student_ID', 'Student_Name', selected_subject]].copy()
@@ -297,7 +327,7 @@ if uploaded_file is not None:
                     st.success(f"All students passed {selected_subject}!")
         
         with tab4:
-            st.subheader("🏆 Top Performers")
+            st.markdown('<div class="section-banner">🏆 Top Performers</div>', unsafe_allow_html=True)
             
             # Overall top performer
             overall_top = analysis_results['overall_top_student']
@@ -344,7 +374,7 @@ if uploaded_file is not None:
                 st.dataframe(pd.DataFrame(top_students_data), use_container_width=True)
         
         with tab5:
-            st.subheader("📄 Detailed Analysis Report")
+            st.markdown('<div class="section-banner">📄 Detailed Analysis Report</div>', unsafe_allow_html=True)
             
             # Generate comprehensive report
             report_content = report_generator.generate_report(analysis_results, show_student_ids)
