@@ -85,36 +85,27 @@ class ExamAnalyzer:
         }
     
     def _calculate_subject_stats(self, df: pd.DataFrame, subject_cols: List[str]) -> Dict[str, Dict]:
-        """Calculate statistics for each subject"""
+        """Calculate statistics for each subject, including list of students who passed"""
         subject_stats = {}
-        
         for subject in subject_cols:
-            # Get valid scores for this subject
             scores = df[subject].dropna()
-            
             if len(scores) == 0:
                 continue
-            
-            # Get pass mark for this subject
             pass_mark = self.get_pass_mark(subject)
-                
-            # Calculate basic statistics
-            passed_count = len(scores[scores >= pass_mark])
-            failed_count = len(scores[scores < pass_mark])
+            passed_mask = scores >= pass_mark
+            passed_count = passed_mask.sum()
+            failed_count = (~passed_mask).sum()
             total_count = len(scores)
-            
             pass_rate = (passed_count / total_count) * 100 if total_count > 0 else 0
             fail_rate = (failed_count / total_count) * 100 if total_count > 0 else 0
-            
             average_score = scores.mean()
             highest_score = scores.max()
             lowest_score = scores.min()
-            
-            # Find topper
             topper_idx = scores.idxmax()
             topper_name = df.loc[topper_idx, 'Student_Name']
             topper_score = scores.max()
-            
+            # List of students who passed this subject
+            passed_students = df.loc[scores.index[passed_mask], ['Student_ID', 'Student_Name']].to_dict('records')
             subject_stats[subject] = {
                 'passed_count': passed_count,
                 'failed_count': failed_count,
@@ -127,9 +118,9 @@ class ExamAnalyzer:
                 'topper': {
                     'name': topper_name,
                     'score': topper_score
-                }
+                },
+                'passed_students': passed_students
             }
-        
         return subject_stats
     
     def _calculate_department_pass_rate(self, df: pd.DataFrame, subject_cols: List[str]) -> float:
@@ -669,7 +660,7 @@ class ExamAnalyzer:
             elements.append(Spacer(1, 15))
         except Exception as e:
             elements.append(Paragraph(f"Score distribution chart error: {str(e)}", styles['Normal']))
-        
+
         # Add score range chart
         try:
             score_range_chart = self._create_score_range_chart(analysis_results)
@@ -678,7 +669,40 @@ class ExamAnalyzer:
             elements.append(Spacer(1, 15))
         except Exception as e:
             elements.append(Paragraph(f"Score range chart error: {str(e)}", styles['Normal']))
-        
+
+        # Add passed students per subject section
+        passed_students_heading = Paragraph("Students Who Passed Each Subject", heading_style)
+        elements.append(passed_students_heading)
+        for subject, stats in analysis_results['subject_wise_stats'].items():
+            subject_name = subject[:20] + "..." if len(subject) > 20 else subject
+            elements.append(Paragraph(f"<b>{subject_name}</b>", styles['Normal']))
+            passed_students = stats.get('passed_students', [])
+            if passed_students:
+                # Show up to 10 students per subject, add note if more
+                max_display = 10
+                table_data = [["Student ID", "Student Name"]]
+                for student in passed_students[:max_display]:
+                    table_data.append([str(student.get('Student_ID', '')), str(student.get('Student_Name', ''))])
+                if len(passed_students) > max_display:
+                    table_data.append(["...", f"and {len(passed_students) - max_display} more"])
+                table = Table(table_data, colWidths=[1.5*inch, 2.5*inch])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                elements.append(table)
+                elements.append(Spacer(1, 8))
+            else:
+                elements.append(Paragraph("No students passed this subject.", styles['Normal']))
+                elements.append(Spacer(1, 8))
         elements.append(PageBreak())
         
         # Top Performers Section

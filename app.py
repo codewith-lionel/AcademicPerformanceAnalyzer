@@ -352,6 +352,25 @@ if uploaded_file is not None:
                     st.plotly_chart(fig_hist, use_container_width=True)
 
                 # List students who failed this subject
+                # List students who passed this subject
+                st.markdown(f'<div class="section-banner" style="background:linear-gradient(90deg,#38ef7d 0%,#11998e 100%)">✅ Students Who Passed {selected_subject}</div>', unsafe_allow_html=True)
+                passed_students = subject_data.get('passed_students', [])
+                if passed_students:
+                    # Add the subject mark to the display
+                    passed_students_display = pd.DataFrame(passed_students)
+                    if not passed_students_display.empty:
+                        # Add the score for the selected subject
+                        passed_students_display['Score'] = passed_students_display['Student_ID'].map(
+                            dict(zip(df['Student_ID'], df[selected_subject]))
+                        )
+                        # Only show relevant columns
+                        st.dataframe(passed_students_display[['Student_ID', 'Student_Name', 'Score']], use_container_width=True)
+                    else:
+                        st.info(f"No students passed {selected_subject}.")
+                else:
+                    st.info(f"No students passed {selected_subject}.")
+
+                # List students who failed this subject
                 st.markdown(f'<div class="section-banner" style="background:linear-gradient(90deg,#e74c3c 0%,#f9d423 100%)">❌ Students Who Failed {selected_subject}</div>', unsafe_allow_html=True)
                 failed_students = df[(df[selected_subject] < subject_pass_mark) & (pd.notna(df[selected_subject]))]
                 if not failed_students.empty:
