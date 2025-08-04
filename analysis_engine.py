@@ -7,8 +7,17 @@ class ExamAnalyzer:
     Core analysis engine for processing student examination results
     """
     
-    def __init__(self, pass_percentage: float = 40.0):
-        self.pass_percentage = pass_percentage
+    def __init__(self, pass_percentage: float = 40.0, subject_pass_marks: Dict[str, float] = None):
+        self.pass_percentage = pass_percentage  # Default pass percentage
+        self.subject_pass_marks = subject_pass_marks or {}  # Subject-specific pass marks
+        
+    def set_subject_pass_marks(self, pass_marks: Dict[str, float]):
+        """Set subject-specific pass marks."""
+        self.subject_pass_marks = pass_marks
+        
+    def get_pass_mark(self, subject: str) -> float:
+        """Get pass mark for a specific subject."""
+        return self.subject_pass_marks.get(subject, self.pass_percentage)
         
     def analyze_results(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -74,10 +83,13 @@ class ExamAnalyzer:
             
             if len(scores) == 0:
                 continue
+            
+            # Get pass mark for this subject
+            pass_mark = self.get_pass_mark(subject)
                 
             # Calculate basic statistics
-            passed_count = len(scores[scores >= self.pass_percentage])
-            failed_count = len(scores[scores < self.pass_percentage])
+            passed_count = len(scores[scores >= pass_mark])
+            failed_count = len(scores[scores < pass_mark])
             total_count = len(scores)
             
             pass_rate = (passed_count / total_count) * 100 if total_count > 0 else 0
@@ -123,7 +135,8 @@ class ExamAnalyzer:
         for _, row in df.iterrows():
             passed_all = True
             for subject in subject_cols:
-                if pd.isna(row[subject]) or row[subject] < self.pass_percentage:
+                pass_mark = self.get_pass_mark(subject)
+                if pd.isna(row[subject]) or row[subject] < pass_mark:
                     passed_all = False
                     break
             
@@ -209,7 +222,8 @@ class ExamAnalyzer:
                 })
             
             # Check for very low pass rates
-            pass_rate = len(scores[scores >= self.pass_percentage]) / len(scores) * 100
+            pass_mark = self.get_pass_mark(subject)
+            pass_rate = len(scores[scores >= pass_mark]) / len(scores) * 100
             if pass_rate < 20:  # Less than 20% pass rate
                 anomalies.append({
                     'type': 'low_pass_rate',
@@ -276,7 +290,15 @@ class ExamAnalyzer:
             scores = [row[col] for col in subject_cols if pd.notna(row[col])]
             if scores:
                 student_data['Average Score'] = f"{np.mean(scores):.2f}"
-                student_data['Passed All Subjects'] = 'Yes' if all(score >= self.pass_percentage for score in scores) else 'No'
+                # Check if passed all subjects using subject-specific pass marks
+                passed_all = True
+                for i, subject in enumerate(subject_cols):
+                    if pd.notna(row[subject]):
+                        pass_mark = self.get_pass_mark(subject)
+                        if row[subject] < pass_mark:
+                            passed_all = False
+                            break
+                student_data['Passed All Subjects'] = 'Yes' if passed_all else 'No'
             else:
                 student_data['Average Score'] = 'N/A'
                 student_data['Passed All Subjects'] = 'N/A'

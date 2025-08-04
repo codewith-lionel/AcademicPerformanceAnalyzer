@@ -7,10 +7,25 @@ class DataValidator:
     Validates Excel data for examination results analysis
     """
     
-    def __init__(self):
-        self.required_columns = ['Student_ID', 'Student_Name']
+    def __init__(self, subject_pass_marks: Dict[str, float] = None):
+        self.required_columns = ['Student_ID']
+        self.optional_columns = ['REG NO', 'Student_Name']
         self.min_score = 0
         self.max_score = 100
+        # Dictionary of subject: pass_mark (e.g., {"Math": 35, "English": 40})
+        self.subject_pass_marks = subject_pass_marks or {}
+
+    def set_subject_pass_marks(self, pass_marks: Dict[str, float]):
+        """Set or update the pass mark for each subject."""
+        self.subject_pass_marks = pass_marks
+
+    def get_subject_pass_marks(self) -> Dict[str, float]:
+        """Get current pass marks for all subjects."""
+        return self.subject_pass_marks.copy()
+
+    def set_subject_pass_marks(self, pass_marks: Dict[str, float]):
+        """Set or update the pass mark for each subject."""
+        self.subject_pass_marks = pass_marks
     
     def validate_data(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -39,39 +54,49 @@ class DataValidator:
         for col in self.required_columns:
             if col not in df.columns:
                 missing_columns.append(col)
-        
         if missing_columns:
             errors.append(f"Missing required columns: {', '.join(missing_columns)}")
-        
+
         # Check for subject columns (numeric data)
-        subject_columns = [col for col in df.columns if col not in self.required_columns]
-        
+        subject_columns = [col for col in df.columns if col not in self.required_columns + self.optional_columns]
+
         if not subject_columns:
             errors.append("No subject columns found. Please ensure your file contains at least one subject with numeric scores.")
-        
+
         # Validate data types and ranges
         if not errors:  # Only proceed if no critical errors
-            # Check Student_ID column
+            # Check Student_ID column (required)
             if 'Student_ID' in df.columns:
                 if df['Student_ID'].isnull().any():
                     errors.append("Student_ID column contains missing values.")
-                
-                # Check for duplicate student IDs
+
+                # Check for duplicate Student_IDs
                 duplicates = df['Student_ID'].duplicated()
                 if duplicates.any():
                     duplicate_ids = df[duplicates]['Student_ID'].tolist()
                     errors.append(f"Duplicate Student_IDs found: {', '.join(map(str, duplicate_ids))}")
-            
-            # Check Student_Name column
+
+            # Check REG NO column (optional)
+            if 'REG NO' in df.columns:
+                if df['REG NO'].isnull().any():
+                    warnings.append("REG NO column contains missing values.")
+
+                # Check for duplicate REG NOs
+                duplicates = df['REG NO'].duplicated()
+                if duplicates.any():
+                    duplicate_ids = df[duplicates]['REG NO'].tolist()
+                    warnings.append(f"Duplicate REG NOs found: {', '.join(map(str, duplicate_ids))}")
+
+            # Check Student_Name column (optional)
             if 'Student_Name' in df.columns:
                 if df['Student_Name'].isnull().any():
                     warnings.append("Student_Name column contains missing values.")
-                
+
                 # Check for potentially duplicate names
                 duplicate_names = df['Student_Name'].duplicated()
                 if duplicate_names.any():
                     warnings.append("Potential duplicate student names found. Please verify if these are different students.")
-            
+
             # Validate subject columns
             for subject in subject_columns:
                 subject_errors, subject_warnings = self._validate_subject_column(df, subject)
@@ -106,60 +131,71 @@ class DataValidator:
         }
     
     def _validate_subject_column(self, df: pd.DataFrame, subject: str) -> tuple:
-        """Validate a single subject column"""
+        """Validate a single subject column, including pass mark check if set."""
         errors = []
         warnings = []
-        
+
         # Check if column exists
         if subject not in df.columns:
             errors.append(f"Subject column '{subject}' not found.")
             return errors, warnings
-        
+
         # Get non-null values
         non_null_values = df[subject].dropna()
-        
+
         if len(non_null_values) == 0:
             warnings.append(f"Subject '{subject}' has no valid scores.")
             return errors, warnings
-        
+
         # Check data type (should be numeric)
         try:
             numeric_values = pd.to_numeric(non_null_values, errors='coerce')
             invalid_count = numeric_values.isnull().sum()
-            
+
             if invalid_count > 0:
                 errors.append(f"Subject '{subject}' contains {invalid_count} non-numeric values.")
         except:
             errors.append(f"Subject '{subject}' contains invalid data that cannot be converted to numbers.")
             return errors, warnings
-        
+
         # Check value ranges
-        numeric_values = numeric_values.dropna()
-        
+        numeric_values = pd.to_numeric(numeric_values, errors='coerce')
+        numeric_values = numeric_values[~numeric_values.isnull()]
+
         if len(numeric_values) > 0:
             min_val = numeric_values.min()
             max_val = numeric_values.max()
-            
+
             if min_val < self.min_score:
                 errors.append(f"Subject '{subject}' contains scores below {self.min_score}: minimum value is {min_val}")
-            
+
             if max_val > self.max_score:
                 errors.append(f"Subject '{subject}' contains scores above {self.max_score}: maximum value is {max_val}")
-            
+
+            # Pass mark check (if set for this subject)
+            pass_mark = self.subject_pass_marks.get(subject)
+            if pass_mark is not None:
+                failed_count = (numeric_values < pass_mark).sum()
+                total_count = len(numeric_values)
+                fail_pct = (failed_count / total_count) * 100 if total_count > 0 else 0
+                warnings.append(f"Subject '{subject}': {failed_count} out of {total_count} students ({fail_pct:.1f}%) scored below the pass mark of {pass_mark}.")
+
             # Check for unusual patterns
             if min_val == max_val:
                 warnings.append(f"Subject '{subject}' has identical scores for all students ({min_val})")
-            
+
             # Check for too many missing values
             total_students = len(df)
             missing_count = df[subject].isnull().sum()
             missing_percentage = (missing_count / total_students) * 100
-            
+
             if missing_percentage > 50:
                 warnings.append(f"Subject '{subject}' has {missing_percentage:.1f}% missing values")
             elif missing_percentage > 20:
                 warnings.append(f"Subject '{subject}' has {missing_percentage:.1f}% missing values")
-        
+        else:
+            warnings.append(f"Subject '{subject}' has no valid numeric scores to analyze.")
+
         return errors, warnings
     
     def _check_data_quality(self, df: pd.DataFrame, subject_columns: List[str]) -> List[str]:
@@ -203,19 +239,22 @@ class DataValidator:
         info = {
             'total_columns': len(df.columns),
             'required_columns': [],
+            'optional_columns': [],
             'subject_columns': [],
             'unknown_columns': []
         }
-        
+
         for col in df.columns:
             if col in self.required_columns:
                 info['required_columns'].append(col)
-            elif col not in self.required_columns:
+            elif col in getattr(self, 'optional_columns', []):
+                info['optional_columns'].append(col)
+            else:
                 # Assume it's a subject column if it contains numeric data
                 try:
                     pd.to_numeric(df[col], errors='coerce')
                     info['subject_columns'].append(col)
                 except:
                     info['unknown_columns'].append(col)
-        
+
         return info

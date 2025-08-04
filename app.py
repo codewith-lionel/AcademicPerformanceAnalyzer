@@ -62,23 +62,64 @@ with st.sidebar:
         help="Upload an Excel file containing student marks data"
     )
     
+    # Initialize session state for pass marks
+    if 'subject_pass_marks' not in st.session_state:
+        st.session_state.subject_pass_marks = {}
+    
     # Pass criteria configuration
-    st.subheader("Pass Criteria")
-    pass_percentage = st.slider(
-        "Minimum Pass Percentage",
+    st.subheader("Pass Criteria Management")
+    
+    # Global pass percentage (fallback)
+    global_pass_percentage = st.slider(
+        "Default Pass Percentage",
         min_value=1,
         max_value=100,
         value=40,
-        help="Set the minimum percentage required to pass a subject"
+        help="Default percentage for subjects without specific pass marks"
     )
+    
+    # Subject-specific pass marks
+    if uploaded_file is not None:
+        # Load data to get subject columns
+        try:
+            temp_df = pd.read_excel(uploaded_file)
+            temp_validator = DataValidator()
+            
+            # Get subject columns
+            required_cols = temp_validator.required_columns
+            optional_cols = temp_validator.optional_columns
+            subject_columns = [col for col in temp_df.columns if col not in required_cols + optional_cols]
+            
+            if subject_columns:
+                st.write("**Subject-Specific Pass Marks:**")
+                
+                # Create input fields for each subject
+                updated_pass_marks = {}
+                for subject in subject_columns:
+                    current_value = st.session_state.subject_pass_marks.get(subject, global_pass_percentage)
+                    pass_mark = st.number_input(
+                        f"{subject}",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=float(current_value),
+                        step=1.0,
+                        key=f"pass_mark_{subject}"
+                    )
+                    updated_pass_marks[subject] = pass_mark
+                
+                # Update session state
+                st.session_state.subject_pass_marks = updated_pass_marks
+                
+                # Reset to default button
+                if st.button("Reset All to Default"):
+                    for subject in subject_columns:
+                        st.session_state.subject_pass_marks[subject] = global_pass_percentage
+                    st.rerun()
+        except Exception as e:
+            st.write("Upload a file to configure subject-specific pass marks")
     
     # Analysis options
     st.subheader("Analysis Options")
-    show_student_ids = st.checkbox(
-        "Show Student IDs",
-        value=False,
-        help="Toggle to show/hide student identification numbers for privacy"
-    )
     
     round_decimals = st.selectbox(
         "Decimal Places",
@@ -91,8 +132,8 @@ with st.sidebar:
 if uploaded_file is not None:
     try:
         # Initialize components
-        validator = DataValidator()
-        analyzer = ExamAnalyzer(pass_percentage)
+        validator = DataValidator(st.session_state.subject_pass_marks)
+        analyzer = ExamAnalyzer(global_pass_percentage, st.session_state.subject_pass_marks)
         report_generator = ReportGenerator(round_decimals)
         
         # Load and validate data
@@ -117,14 +158,8 @@ if uploaded_file is not None:
         # Display data preview
         st.markdown('<div class="section-banner">📋 Data Preview</div>', unsafe_allow_html=True)
         
-        # Anonymize student IDs if required
-        display_df = df.copy()
-        if not show_student_ids and 'Student_ID' in display_df.columns:
-            display_df['Student_ID'] = display_df['Student_ID'].apply(
-                lambda x: f"Student_{hash(str(x)) % 10000:04d}"
-            )
-        
-        st.dataframe(display_df.head(10), use_container_width=True)
+        # Display data preview
+        st.dataframe(df.head(10), use_container_width=True)
         
         # Perform analysis
         with st.spinner("Analyzing examination results..."):
@@ -301,6 +336,9 @@ if uploaded_file is not None:
                     st.plotly_chart(fig_subject_pie, use_container_width=True)
 
                 with col2:
+                    # Get pass mark for this subject
+                    subject_pass_mark = st.session_state.subject_pass_marks.get(selected_subject, global_pass_percentage)
+                    
                     # Score histogram
                     subject_scores = df[selected_subject].dropna()
                     fig_hist = px.histogram(
@@ -309,18 +347,15 @@ if uploaded_file is not None:
                         title=f"{selected_subject} - Score Distribution",
                         labels={'x': 'Score', 'y': 'Frequency'}
                     )
-                    fig_hist.add_vline(x=pass_percentage, line_dash="dash", 
-                                     line_color="red", annotation_text="Pass Line")
+                    fig_hist.add_vline(x=subject_pass_mark, line_dash="dash", 
+                                     line_color="red", annotation_text=f"Pass Line ({subject_pass_mark}%)")
                     st.plotly_chart(fig_hist, use_container_width=True)
 
                 # List students who failed this subject
                 st.markdown(f'<div class="section-banner" style="background:linear-gradient(90deg,#e74c3c 0%,#f9d423 100%)">❌ Students Who Failed {selected_subject}</div>', unsafe_allow_html=True)
-                failed_students = df[(df[selected_subject] < pass_percentage) & (pd.notna(df[selected_subject]))]
+                failed_students = df[(df[selected_subject] < subject_pass_mark) & (pd.notna(df[selected_subject]))]
                 if not failed_students.empty:
                     failed_students_display = failed_students[['Student_ID', 'Student_Name', selected_subject]].copy()
-                    if not show_student_ids:
-                        failed_students_display['Student_ID'] = failed_students_display['Student_ID'].apply(lambda x: f"Student_{hash(str(x)) % 10000:04d}")
-                        failed_students_display['Student_Name'] = failed_students_display['Student_Name'].apply(lambda x: f"Student_{hash(str(x)) % 10000:04d}")
                     failed_students_display = failed_students_display.rename(columns={selected_subject: 'Score'})
                     st.dataframe(failed_students_display, use_container_width=True)
                 else:
@@ -348,10 +383,6 @@ if uploaded_file is not None:
             
             if toppers_data:
                 toppers_df = pd.DataFrame(toppers_data)
-                if not show_student_ids:
-                    toppers_df['Topper'] = toppers_df['Topper'].apply(
-                        lambda x: f"Student_{hash(str(x)) % 10000:04d}"
-                    )
                 st.dataframe(toppers_df, use_container_width=True)
             
             # Top 5 students overall
@@ -361,13 +392,9 @@ if uploaded_file is not None:
             if top_students:
                 top_students_data = []
                 for i, student in enumerate(top_students, 1):
-                    name = student['name']
-                    if not show_student_ids:
-                        name = f"Student_{hash(str(name)) % 10000:04d}"
-                    
                     top_students_data.append({
                         'Rank': i,
-                        'Student': name,
+                        'Student': student['name'],
                         'Average Score': f"{student['average']:.{round_decimals}f}%"
                     })
                 
@@ -377,7 +404,7 @@ if uploaded_file is not None:
             st.markdown('<div class="section-banner">📄 Detailed Analysis Report</div>', unsafe_allow_html=True)
             
             # Generate comprehensive report
-            report_content = report_generator.generate_report(analysis_results, show_student_ids)
+            report_content = report_generator.generate_report(analysis_results, True)
             
             # Display report
             st.markdown(report_content)
@@ -394,7 +421,7 @@ if uploaded_file is not None:
             st.subheader("Export Options")
             
             # Export processed data
-            export_data = analyzer.prepare_export_data(df, analysis_results, show_student_ids)
+            export_data = analyzer.prepare_export_data(df, analysis_results, True)
             
             # Convert to Excel
             output = io.BytesIO()
