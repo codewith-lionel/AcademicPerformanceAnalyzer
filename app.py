@@ -473,6 +473,7 @@ if uploaded_file is not None:
                     st.error(f"PDF export error: {str(pdf_error)}")
                     st.info("Please ensure reportlab is installed: pip install reportlab")
     
+
     except Exception as e:
         st.error(f"❌ An error occurred while processing the file: {str(e)}")
         st.info("Please ensure your Excel file has the correct format with student data.")
@@ -480,7 +481,6 @@ if uploaded_file is not None:
 else:
     # Instructions when no file is uploaded
     st.info("👆 Please upload an Excel file to begin analysis")
-    
     st.subheader("📋 File Format Requirements")
     st.markdown("""
     Your Excel file should contain:
@@ -490,7 +490,6 @@ else:
     
     Example format:
     """)
-    
     # Sample format table
     sample_data = {
         'Student_ID': ['S001', 'S002', 'S003'],
@@ -499,9 +498,7 @@ else:
         'Physics': [78, 88, 85],
         'Chemistry': [92, 85, 90]
     }
-    
     st.dataframe(pd.DataFrame(sample_data), use_container_width=True)
-    
     st.subheader("🔍 Analysis Features")
     st.markdown("""
     This system provides:
@@ -512,3 +509,13 @@ else:
     - **Data Export**: Download analysis results and reports
     - **Privacy Protection**: Option to anonymize student identities
     """)
+
+# --- Footer ---
+st.markdown("""
+<hr style='margin-top:2em;margin-bottom:0.5em;border:1px solid #e3f0fc;'>
+<div style='text-align:center;font-size:1.1rem;padding:0.5em 0;color:#2d6cdf;'>
+  Developed by <b>Lionel</b> <br>
+  Department: Computer Science 2023 - 2026<br>
+  Portfolio: <a href='https://codewith-lionel.github.io/portfolio/' target='_blank'>codewith-lionel.github.io/portfolio/</a>
+</div>
+""", unsafe_allow_html=True)
